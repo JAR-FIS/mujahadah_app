@@ -6,7 +6,7 @@ import '../../models/ibadah_model.dart';
 import '../../controllers/ibadah_controller.dart';
 
 class ProgramScreen extends StatelessWidget {
-  const ProgramScreen({Key? key}) : super(key: key);
+  const ProgramScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

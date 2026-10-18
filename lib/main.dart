@@ -11,7 +11,6 @@ import 'models/ibadah_model.dart';
 import 'models/program_model.dart';
 
 import 'theme/app_theme.dart';
-import 'views/screens/main_screen.dart';
 import 'views/screens/splash_screen.dart';
 
 void main() async {

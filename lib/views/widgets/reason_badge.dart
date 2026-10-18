@@ -5,10 +5,10 @@ class ReasonBadge extends StatelessWidget {
   final String? selectedReason;
 
   const ReasonBadge({
-    Key? key,
+    super.key,
     required this.onSelected,
     this.selectedReason,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
