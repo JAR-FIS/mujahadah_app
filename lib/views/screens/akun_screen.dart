@@ -4,7 +4,7 @@ import '../../controllers/theme_controller.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 class AkunScreen extends StatelessWidget {
-  const AkunScreen({Key? key}) : super(key: key);
+  const AkunScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

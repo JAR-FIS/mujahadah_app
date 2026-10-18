@@ -1,11 +1,9 @@
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import '../models/program_model.dart';
-import '../models/ibadah_model.dart';
 
 class IbadahController extends GetxController {
   late Box<ProgramModel> _programBox;
-  late Box<IbadahModel> _ibadahBox;
 
   var activePrograms = <ProgramModel>[].obs;
   var historyPrograms = <ProgramModel>[].obs;
@@ -14,7 +12,6 @@ class IbadahController extends GetxController {
   void onInit() {
     super.onInit();
     _programBox = Hive.box<ProgramModel>('program');
-    _ibadahBox = Hive.box<IbadahModel>('ibadah');
     loadPrograms();
   }
 
