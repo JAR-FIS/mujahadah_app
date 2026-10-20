@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../controllers/v2_navigation_controller.dart';
 import '../../../theme/v2_design_tokens.dart';
+import '../dashboard/v2_dashboard_view.dart';
 import '../placeholders/v2_placeholders.dart';
 
 /// Isolated V2 App Shell implementing the approved 5-tab navigation foundation.
@@ -21,10 +22,12 @@ import '../placeholders/v2_placeholders.dart';
 /// - Enforces safe-area insets and accessible touch targets (>= 48x48 dp).
 class V2AppShell extends StatefulWidget {
   final V2NavigationController? controller;
+  final Widget? dashboard;
 
   const V2AppShell({
     super.key,
     this.controller,
+    this.dashboard,
   });
 
   @override
@@ -58,13 +61,14 @@ class _V2AppShellState extends State<V2AppShell> {
     super.dispose();
   }
 
-  static const List<Widget> _destinations = [
-    V2DashboardPlaceholder(),
-    V2DalilPlaceholder(),
-    V2ProgramPlaceholder(),
-    V2HistoryPlaceholder(),
-    V2AkunPlaceholder(),
-  ];
+  List<Widget> get _destinations => [
+        widget.dashboard ??
+            V2DashboardView(navigationController: _navigationController),
+        const V2DalilPlaceholder(),
+        const V2ProgramPlaceholder(),
+        const V2HistoryPlaceholder(),
+        const V2AkunPlaceholder(),
+      ];
 
   @override
   Widget build(BuildContext context) {
