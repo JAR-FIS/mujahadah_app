@@ -24,6 +24,7 @@ import 'package:mujahadah/theme/v2_theme.dart';
 import 'package:mujahadah/views/v2/dalil/v2_dalil_view.dart';
 import 'package:mujahadah/views/v2/dashboard/v2_dashboard_view.dart';
 import 'package:mujahadah/views/v2/placeholders/v2_placeholders.dart';
+import 'package:mujahadah/views/v2/program/v2_program_hub_view.dart';
 import 'package:mujahadah/views/v2/shell/v2_app_shell.dart';
 
 void main() {
@@ -695,8 +696,7 @@ void main() {
       // Tab 2: Program
       navController.selectTab(V2NavigationTab.program);
       await tester.pumpAndSettle();
-      expect(find.byType(V2ProgramPlaceholder), findsOneWidget);
-      expect(find.text('S17 • Foundation Placeholder'), findsOneWidget);
+      expect(find.byType(V2ProgramHubView), findsOneWidget);
 
       // Tab 3: History / Riwayat
       navController.selectTab(V2NavigationTab.history);
