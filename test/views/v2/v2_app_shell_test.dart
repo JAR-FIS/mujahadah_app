@@ -11,6 +11,7 @@ import 'package:mujahadah/theme/v2_theme.dart';
 import 'package:mujahadah/views/v2/dalil/v2_dalil_view.dart';
 import 'package:mujahadah/views/v2/dashboard/v2_dashboard_view.dart';
 import 'package:mujahadah/views/v2/placeholders/v2_placeholders.dart';
+import 'package:mujahadah/views/v2/program/v2_program_hub_view.dart';
 import 'package:mujahadah/views/v2/shell/v2_app_shell.dart';
 
 void main() {
@@ -157,7 +158,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.currentIndex, 2);
       expect(controller.currentTab, V2NavigationTab.program);
-      expect(find.byType(V2ProgramPlaceholder), findsOneWidget);
+      expect(find.byType(V2ProgramHubView), findsOneWidget);
 
       // Select History / Riwayat (3)
       await tester.tap(find.byKey(const ValueKey('v2_nav_item_history')));

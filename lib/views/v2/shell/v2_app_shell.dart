@@ -6,6 +6,7 @@ import '../../../theme/v2_design_tokens.dart';
 import '../dalil/v2_dalil_view.dart';
 import '../dashboard/v2_dashboard_view.dart';
 import '../placeholders/v2_placeholders.dart';
+import '../program/v2_program_hub_view.dart';
 
 /// Isolated V2 App Shell implementing the approved 5-tab navigation foundation.
 ///
@@ -25,12 +26,14 @@ class V2AppShell extends StatefulWidget {
   final V2NavigationController? controller;
   final Widget? dashboard;
   final Widget? dalil;
+  final Widget? program;
 
   const V2AppShell({
     super.key,
     this.controller,
     this.dashboard,
     this.dalil,
+    this.program,
   });
 
   @override
@@ -69,7 +72,8 @@ class _V2AppShellState extends State<V2AppShell> {
             V2DashboardView(navigationController: _navigationController),
         widget.dalil ??
             V2DalilView(navigationController: _navigationController),
-        const V2ProgramPlaceholder(),
+        widget.program ??
+            V2ProgramHubView(navigationController: _navigationController),
         const V2HistoryPlaceholder(),
         const V2AkunPlaceholder(),
       ];
