@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../controllers/v2_navigation_controller.dart';
 import '../../../theme/v2_design_tokens.dart';
+import '../dalil/v2_dalil_view.dart';
 import '../dashboard/v2_dashboard_view.dart';
 import '../placeholders/v2_placeholders.dart';
 
@@ -23,11 +24,13 @@ import '../placeholders/v2_placeholders.dart';
 class V2AppShell extends StatefulWidget {
   final V2NavigationController? controller;
   final Widget? dashboard;
+  final Widget? dalil;
 
   const V2AppShell({
     super.key,
     this.controller,
     this.dashboard,
+    this.dalil,
   });
 
   @override
@@ -64,7 +67,8 @@ class _V2AppShellState extends State<V2AppShell> {
   List<Widget> get _destinations => [
         widget.dashboard ??
             V2DashboardView(navigationController: _navigationController),
-        const V2DalilPlaceholder(),
+        widget.dalil ??
+            V2DalilView(navigationController: _navigationController),
         const V2ProgramPlaceholder(),
         const V2HistoryPlaceholder(),
         const V2AkunPlaceholder(),
