@@ -21,6 +21,7 @@ import 'package:mujahadah/repositories/program_v2_repository.dart';
 import 'package:mujahadah/services/daily_checkin_v2_service.dart';
 import 'package:mujahadah/theme/v2_design_tokens.dart';
 import 'package:mujahadah/theme/v2_theme.dart';
+import 'package:mujahadah/views/v2/dalil/v2_dalil_view.dart';
 import 'package:mujahadah/views/v2/dashboard/v2_dashboard_view.dart';
 import 'package:mujahadah/views/v2/placeholders/v2_placeholders.dart';
 import 'package:mujahadah/views/v2/shell/v2_app_shell.dart';
@@ -689,8 +690,7 @@ void main() {
       // Tab 1: Dalil
       navController.selectTab(V2NavigationTab.dalil);
       await tester.pumpAndSettle();
-      expect(find.byType(V2DalilPlaceholder), findsOneWidget);
-      expect(find.text('S15 • Foundation Placeholder'), findsOneWidget);
+      expect(find.byType(V2DalilView), findsOneWidget);
 
       // Tab 2: Program
       navController.selectTab(V2NavigationTab.program);

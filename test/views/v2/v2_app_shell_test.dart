@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:mujahadah/controllers/v2_navigation_controller.dart';
 import 'package:mujahadah/theme/v2_design_tokens.dart';
 import 'package:mujahadah/theme/v2_theme.dart';
+import 'package:mujahadah/views/v2/dalil/v2_dalil_view.dart';
 import 'package:mujahadah/views/v2/dashboard/v2_dashboard_view.dart';
 import 'package:mujahadah/views/v2/placeholders/v2_placeholders.dart';
 import 'package:mujahadah/views/v2/shell/v2_app_shell.dart';
@@ -149,7 +150,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.currentIndex, 1);
       expect(controller.currentTab, V2NavigationTab.dalil);
-      expect(find.byType(V2DalilPlaceholder), findsOneWidget);
+      expect(find.byType(V2DalilView), findsOneWidget);
 
       // Select Program (2) via center plus action
       await tester.tap(find.byKey(const ValueKey('v2_nav_item_program')));
