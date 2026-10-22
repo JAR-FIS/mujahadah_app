@@ -15,6 +15,7 @@ import 'package:mujahadah/repositories/program_v2_repository.dart';
 import 'package:mujahadah/theme/v2_theme.dart';
 import 'package:mujahadah/views/v2/dalil/v2_dalil_view.dart';
 import 'package:mujahadah/views/v2/program/v2_pilih_ibadah_view.dart';
+import 'package:mujahadah/views/v2/program/v2_program_config_view.dart';
 import 'package:mujahadah/views/v2/program/v2_program_hub_view.dart';
 import 'package:mujahadah/views/v2/program/widgets/program_active_card.dart';
 import 'package:mujahadah/views/v2/program/widgets/program_catalog_card.dart';
@@ -578,23 +579,24 @@ void main() {
 
     // -------------------------------------------------------------------------
     // -------------------------------------------------------------------------
-    // Scenario 10: Daily-eligibility and S20 callback enforcement in S18
+    // -------------------------------------------------------------------------
+    // Scenario 10: Daily-eligibility and S20 setup enforcement in S18
     // -------------------------------------------------------------------------
     testWidgets(
-        '10. Daily-eligibility and S20 callback enforcement: blocked when ineligible or callback is null, dispatches when provided',
+        '10. Daily-eligibility and S20 setup enforcement: blocked when ineligible or unwired, navigates to S20 when wired',
         (tester) async {
-      int callbackCount = 0;
-      V2IbadahCatalogItem? startedItem;
+      int legacyCallbackCount = 0;
       final controller = V2ProgramHubController(
         initialCatalog: sampleCatalogItems,
       );
 
-      // Part A: View with null callback (S20 not yet wired)
+      // Part A: View with null callback and no setup wiring
       await tester.pumpWidget(
         GetMaterialApp(
           theme: V2Theme.lightTheme,
           home: V2ProgramHubView(
             controller: controller,
+            wireProgramSetup: false,
             onStartProgram: null,
           ),
         ),
@@ -618,7 +620,7 @@ void main() {
       ElevatedButton btn = tester.widget(btnFinder);
       expect(btn.onPressed, isNull);
 
-      // 2. Return and select eligible item (Sholat Dhuha) with null callback
+      // 2. Return and select eligible item (Sholat Dhuha) with no setup wiring
       await tester
           .tap(find.byKey(const ValueKey('v2_pilih_ibadah_back_button')));
       await tester.pumpAndSettle();
@@ -627,7 +629,7 @@ void main() {
           .tap(find.byKey(const ValueKey('v2_catalog_item_sholat_dhuha')));
       await tester.pumpAndSettle();
 
-      // CTA remains disabled because onStartProgram is null, avoiding inert button
+      // CTA remains disabled because setup is not wired, avoiding inert button
       btn = tester.widget(btnFinder);
       expect(btn.onPressed, isNull);
       expect(
@@ -635,18 +637,54 @@ void main() {
               'Pengaturan target dan durasi program (S20) akan segera tersedia.'),
           findsOneWidget);
 
-      // Part B: Re-pump with valid onStartProgram callback
-      final activeController = V2ProgramHubController(
+      // Part B: Re-pump with ONLY deprecated legacy callback and NO setup wiring
+      final unwiredController = V2ProgramHubController(
         initialCatalog: sampleCatalogItems,
       );
       await tester.pumpWidget(
         GetMaterialApp(
           theme: V2Theme.lightTheme,
           home: V2ProgramHubView(
-            controller: activeController,
+            controller: unwiredController,
+            wireProgramSetup: false,
             onStartProgram: (item) {
-              callbackCount++;
-              startedItem = item;
+              legacyCallbackCount++;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Select eligible item
+      await tester
+          .tap(find.byKey(const ValueKey('v2_catalog_item_sholat_dhuha')));
+      await tester.pumpAndSettle();
+
+      // Button remains disabled: deprecated legacy callback alone does NOT enable CTA
+      btn = tester.widget(btnFinder);
+      expect(btn.onPressed, isNull);
+      expect(
+          find.text(
+              'Pengaturan target dan durasi program (S20) akan segera tersedia.'),
+          findsOneWidget);
+
+      // Tapping disabled CTA produces zero callback increments
+      await tester.tap(btnFinder, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(legacyCallbackCount, 0);
+
+      // Part C: Re-pump with wireProgramSetup: true
+      final wiredController = V2ProgramHubController(
+        initialCatalog: sampleCatalogItems,
+      );
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: V2Theme.lightTheme,
+          home: V2ProgramHubView(
+            controller: wiredController,
+            wireProgramSetup: true,
+            onStartProgram: (item) {
+              legacyCallbackCount++;
             },
           ),
         ),
@@ -670,8 +708,12 @@ void main() {
       await tester.tap(btnFinder);
       await tester.pumpAndSettle();
 
-      expect(callbackCount, 1);
-      expect(startedItem?.id, 'sholat_dhuha');
+      // Opens S20
+      expect(find.byType(V2ProgramConfigView), findsOneWidget);
+      expect(wiredController.currentStep, ProgramScreenStep.programConfig);
+
+      // Crucial: legacy callback was NOT invoked during navigation, zero side effects
+      expect(legacyCallbackCount, 0);
     });
 
     // -------------------------------------------------------------------------

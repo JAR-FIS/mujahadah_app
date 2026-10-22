@@ -1,7 +1,9 @@
 import 'package:get/get.dart';
 
 import '../models/program_v2_model.dart';
+import '../models/v2_custom_ibadah_draft.dart';
 import '../models/v2_ibadah_catalog_item.dart';
+import '../models/v2_program_config_draft.dart';
 import '../repositories/program_v2_repository.dart';
 
 /// Top-level tabs for V2 Program Hub (Screen S17).
@@ -19,24 +21,44 @@ enum ProgramHubTab {
   }
 }
 
-/// Controller coordinating V2 Program Hub (S17) and Pilih Ibadah (S18).
+/// Navigation steps within the Program Hub workflow.
+enum ProgramScreenStep {
+  hub, // S17: Program Hub Home (Katalog / Ibadah Saya)
+  catalogDetail, // S18: Detail & Keutamaan
+  customIbadah, // S19: Tambah Ibadah Kustom
+  programConfig, // S20: Konfigurasi Target & Durasi Program
+  programReview, // Review Program: Konfirmasi Mandatori
+}
+
+/// Controller coordinating V2 Program Hub (S17), Pilih Ibadah (S18),
+/// Tambah Ibadah Kustom (S19), Konfigurasi Program (S20), and Review Program.
 ///
 /// Responsibilities:
 /// 1. Manages Program Hub segment switching (Katalog Ibadah / Ibadah Saya).
 /// 2. Manages real-time search across catalog items and active user programs.
 /// 3. Projects active programs from [ProgramV2Repository] without domain mutations.
-/// 4. Handles S18 selection by item reference or stable ID.
-/// 5. Ensures PENDING_FAILURE programs are surfaced as requiring Muhasabah,
+/// 4. Coordinates step navigation: S17 -> S18 -> S20 -> Review -> Hub, and S17 -> S19 -> S20.
+/// 5. Maintains configuration draft state across "Kembali & Edit" navigation.
+/// 6. Clears stale draft state when switching to a different ibadah.
+/// 7. Ensures PENDING_FAILURE programs are surfaced as requiring Muhasabah,
 ///    while terminal programs (FAILED, WARNING, SUCCESS) are excluded from active list.
 class V2ProgramHubController extends GetxController {
   final ProgramV2Repository? _programRepository;
 
   final Rx<ProgramHubTab> _currentTab;
+  final Rx<ProgramScreenStep> _currentStep = ProgramScreenStep.hub.obs;
   final RxString _searchQuery = ''.obs;
   final RxList<V2IbadahCatalogItem> _catalogItems = <V2IbadahCatalogItem>[].obs;
   final RxList<ProgramV2Model> _userPrograms = <ProgramV2Model>[].obs;
   final Rxn<V2IbadahCatalogItem> _selectedCatalogItem =
       Rxn<V2IbadahCatalogItem>();
+  final Rxn<V2IbadahCatalogItem> _configuringItem = Rxn<V2IbadahCatalogItem>();
+  final Rx<V2ProgramConfigDraft> _configDraft =
+      const V2ProgramConfigDraft().obs;
+  final Rxn<V2CustomIbadahDraft> _customDraft = Rxn<V2CustomIbadahDraft>();
+  final Rxn<V2IbadahCatalogItem> _persistedCustomItem =
+      Rxn<V2IbadahCatalogItem>();
+  final RxBool _isCustomSource = false.obs;
   final RxBool _isLoading = false.obs;
   final RxnString _errorMessage = RxnString();
 
@@ -55,6 +77,9 @@ class V2ProgramHubController extends GetxController {
   /// Current active hub tab.
   ProgramHubTab get currentTab => _currentTab.value;
 
+  /// Current active screen step.
+  ProgramScreenStep get currentStep => _currentStep.value;
+
   /// Current active search filter.
   String get searchQuery => _searchQuery.value;
 
@@ -67,8 +92,32 @@ class V2ProgramHubController extends GetxController {
   /// Currently selected catalog item for S18 detail, or null if on hub.
   V2IbadahCatalogItem? get selectedCatalogItem => _selectedCatalogItem.value;
 
+  /// Currently configuring item for S20 / Review.
+  V2IbadahCatalogItem? get configuringItem => _configuringItem.value;
+
+  /// Current program configuration draft.
+  V2ProgramConfigDraft get configDraft => _configDraft.value;
+
+  /// Current custom ibadah draft (S19).
+  V2CustomIbadahDraft? get customDraft => _customDraft.value;
+
+  /// Persisted custom ibadah template from successful save, if any.
+  V2IbadahCatalogItem? get persistedCustomItem => _persistedCustomItem.value;
+
   /// Whether S18 detail view is currently open.
   bool get isDetailOpen => _selectedCatalogItem.value != null;
+
+  /// Whether S19 custom ibadah view is currently open.
+  bool get isCustomIbadahOpen =>
+      _currentStep.value == ProgramScreenStep.customIbadah;
+
+  /// Whether S20 configuration view is currently open.
+  bool get isConfigOpen =>
+      _currentStep.value == ProgramScreenStep.programConfig;
+
+  /// Whether Review Program view is currently open.
+  bool get isReviewOpen =>
+      _currentStep.value == ProgramScreenStep.programReview;
 
   /// Whether programs are currently being loaded.
   bool get isLoading => _isLoading.value;
@@ -91,9 +140,41 @@ class V2ProgramHubController extends GetxController {
     _searchQuery.value = '';
   }
 
+  /// Navigates to S19 Tambah Ibadah Kustom.
+  /// When [isNew] is true, clears any prior draft and persisted template state
+  /// so that a genuinely new custom ibadah flow starts with a clean slate.
+  void openCustomIbadah({bool isNew = false}) {
+    if (isNew) {
+      resetCustomDraft();
+    }
+    _currentStep.value = ProgramScreenStep.customIbadah;
+  }
+
+  /// Resets custom ibadah draft and persisted custom template state.
+  void resetCustomDraft() {
+    _customDraft.value = null;
+    _persistedCustomItem.value = null;
+  }
+
+  /// Updates the persisted custom item reference after a successful save.
+  void setPersistedCustomItem(V2IbadahCatalogItem? item) {
+    _persistedCustomItem.value = item;
+  }
+
+  /// Returns from S19 to S17 Hub while preserving current custom draft.
+  void backFromCustomIbadah() {
+    _currentStep.value = ProgramScreenStep.hub;
+  }
+
+  /// Updates the stored custom ibadah draft.
+  void updateCustomDraft(V2CustomIbadahDraft draft) {
+    _customDraft.value = draft;
+  }
+
   /// Selects an ibadah item to navigate to S18 Pilih Ibadah.
   void selectItem(V2IbadahCatalogItem item) {
     _selectedCatalogItem.value = item;
+    _currentStep.value = ProgramScreenStep.catalogDetail;
   }
 
   /// Selects an ibadah item by its stable unique ID.
@@ -103,15 +184,68 @@ class V2ProgramHubController extends GetxController {
     if (cleanId.isEmpty) return false;
     final match = _catalogItems.firstWhereOrNull((item) => item.id == cleanId);
     if (match != null) {
-      _selectedCatalogItem.value = match;
+      selectItem(match);
       return true;
     }
     return false;
   }
 
-  /// Clears selection and navigates back from S18 to S17 Program Hub.
+  /// Begins S20 configuration for [item].
+  ///
+  /// Resets configuration draft when switching to a different ibadah,
+  /// preventing stale duration or reminder values from bleeding across items.
+  void startProgramSetup(V2IbadahCatalogItem item, {bool fromCustom = false}) {
+    if (_configuringItem.value?.id != item.id) {
+      _configDraft.value = V2ProgramConfigDraft(
+        targetDays: item.defaultTargetDays >= 40 ? item.defaultTargetDays : 40,
+      );
+    }
+    _configuringItem.value = item;
+    _isCustomSource.value = fromCustom;
+    _currentStep.value = ProgramScreenStep.programConfig;
+  }
+
+  /// Updates the active program configuration draft.
+  void updateConfigDraft(V2ProgramConfigDraft draft) {
+    _configDraft.value = draft;
+  }
+
+  /// Navigates from S20 to Review Program.
+  void openReview() {
+    _currentStep.value = ProgramScreenStep.programReview;
+  }
+
+  /// Navigates backwards from Review Program to S20 (preserves draft).
+  void backFromReview() {
+    _currentStep.value = ProgramScreenStep.programConfig;
+  }
+
+  /// Navigates backwards from S20 to previous screen.
+  void backFromConfig() {
+    if (_isCustomSource.value) {
+      _currentStep.value = ProgramScreenStep.customIbadah;
+    } else if (_selectedCatalogItem.value != null) {
+      _currentStep.value = ProgramScreenStep.catalogDetail;
+    } else {
+      _currentStep.value = ProgramScreenStep.hub;
+    }
+  }
+
+  /// Clears selection and navigates back to S17 Program Hub.
   void clearSelection() {
     _selectedCatalogItem.value = null;
+    _configuringItem.value = null;
+    _currentStep.value = ProgramScreenStep.hub;
+  }
+
+  /// Adds a newly persisted custom catalog item to the local catalog list.
+  void addCatalogItem(V2IbadahCatalogItem item) {
+    final index = _catalogItems.indexWhere((i) => i.id == item.id);
+    if (index >= 0) {
+      _catalogItems[index] = item;
+    } else {
+      _catalogItems.insert(0, item);
+    }
   }
 
   /// Injects or updates the catalog items.

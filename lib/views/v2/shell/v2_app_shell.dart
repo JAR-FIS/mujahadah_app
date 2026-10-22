@@ -27,6 +27,7 @@ class V2AppShell extends StatefulWidget {
   final Widget? dashboard;
   final Widget? dalil;
   final Widget? program;
+  final bool? wireProgramSetup;
 
   const V2AppShell({
     super.key,
@@ -34,6 +35,7 @@ class V2AppShell extends StatefulWidget {
     this.dashboard,
     this.dalil,
     this.program,
+    this.wireProgramSetup,
   });
 
   @override
@@ -73,7 +75,10 @@ class _V2AppShellState extends State<V2AppShell> {
         widget.dalil ??
             V2DalilView(navigationController: _navigationController),
         widget.program ??
-            V2ProgramHubView(navigationController: _navigationController),
+            V2ProgramHubView(
+              navigationController: _navigationController,
+              wireProgramSetup: widget.wireProgramSetup ?? true,
+            ),
         const V2HistoryPlaceholder(),
         const V2AkunPlaceholder(),
       ];

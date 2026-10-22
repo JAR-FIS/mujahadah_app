@@ -565,5 +565,52 @@ void main() {
       expect(lightBytes.take(4).toList(), [0x89, 0x50, 0x4E, 0x47]);
       expect(darkBytes.take(4).toList(), [0x89, 0x50, 0x4E, 0x47]);
     });
+
+    // -------------------------------------------------------------------------
+    // Scenario 15: App Shell Program Hub default setup wiring
+    // -------------------------------------------------------------------------
+    testWidgets(
+        '15. V2AppShell configures default Program Hub with wireProgramSetup: true',
+        (tester) async {
+      final controller = V2NavigationController();
+
+      // Default shell build
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: V2Theme.lightTheme,
+          home: V2AppShell(controller: controller),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Switch to Program tab (index 2)
+      await tester.tap(find.byKey(const ValueKey('v2_nav_item_program')));
+      await tester.pumpAndSettle();
+
+      // Find V2ProgramHubView inside default App Shell
+      final hubFinder = find.byType(V2ProgramHubView);
+      expect(hubFinder, findsOneWidget);
+      final V2ProgramHubView hub = tester.widget(hubFinder);
+      expect(hub.wireProgramSetup, isTrue);
+
+      // Explicit override wireProgramSetup: false
+      final controllerUnwired = V2NavigationController();
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: V2Theme.lightTheme,
+          home: V2AppShell(
+            controller: controllerUnwired,
+            wireProgramSetup: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('v2_nav_item_program')));
+      await tester.pumpAndSettle();
+
+      final V2ProgramHubView unwiredHub = tester.widget(hubFinder);
+      expect(unwiredHub.wireProgramSetup, isFalse);
+    });
   });
 }
