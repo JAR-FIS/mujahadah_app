@@ -28,16 +28,19 @@ enum ProgramScreenStep {
   customIbadah, // S19: Tambah Ibadah Kustom
   programConfig, // S20: Konfigurasi Target & Durasi Program
   programReview, // Review Program: Konfirmasi Mandatori
+  programDetail, // S21: Detail Program & Daily Check-in
 }
 
 /// Controller coordinating V2 Program Hub (S17), Pilih Ibadah (S18),
-/// Tambah Ibadah Kustom (S19), Konfigurasi Program (S20), and Review Program.
+/// Tambah Ibadah Kustom (S19), Konfigurasi Program (S20), Review Program,
+/// and Program Detail (S21).
 ///
 /// Responsibilities:
 /// 1. Manages Program Hub segment switching (Katalog Ibadah / Ibadah Saya).
 /// 2. Manages real-time search across catalog items and active user programs.
 /// 3. Projects active programs from [ProgramV2Repository] without domain mutations.
-/// 4. Coordinates step navigation: S17 -> S18 -> S20 -> Review -> Hub, and S17 -> S19 -> S20.
+/// 4. Coordinates step navigation: S17 -> S18 -> S20 -> Review -> Hub, S17 -> S19 -> S20,
+///    and S17 (Ibadah Saya) -> S21 Program Detail.
 /// 5. Maintains configuration draft state across "Kembali & Edit" navigation.
 /// 6. Clears stale draft state when switching to a different ibadah.
 /// 7. Ensures PENDING_FAILURE programs are surfaced as requiring Muhasabah,
@@ -53,6 +56,7 @@ class V2ProgramHubController extends GetxController {
   final Rxn<V2IbadahCatalogItem> _selectedCatalogItem =
       Rxn<V2IbadahCatalogItem>();
   final Rxn<V2IbadahCatalogItem> _configuringItem = Rxn<V2IbadahCatalogItem>();
+  final Rxn<ProgramV2Model> _selectedProgram = Rxn<ProgramV2Model>();
   final Rx<V2ProgramConfigDraft> _configDraft =
       const V2ProgramConfigDraft().obs;
   final Rxn<V2CustomIbadahDraft> _customDraft = Rxn<V2CustomIbadahDraft>();
@@ -95,6 +99,9 @@ class V2ProgramHubController extends GetxController {
   /// Currently configuring item for S20 / Review.
   V2IbadahCatalogItem? get configuringItem => _configuringItem.value;
 
+  /// Currently selected user program for S21 Program Detail, or null if on hub.
+  ProgramV2Model? get selectedProgram => _selectedProgram.value;
+
   /// Current program configuration draft.
   V2ProgramConfigDraft get configDraft => _configDraft.value;
 
@@ -118,6 +125,10 @@ class V2ProgramHubController extends GetxController {
   /// Whether Review Program view is currently open.
   bool get isReviewOpen =>
       _currentStep.value == ProgramScreenStep.programReview;
+
+  /// Whether S21 Program Detail view is currently open.
+  bool get isProgramDetailOpen =>
+      _currentStep.value == ProgramScreenStep.programDetail;
 
   /// Whether programs are currently being loaded.
   bool get isLoading => _isLoading.value;
@@ -231,10 +242,44 @@ class V2ProgramHubController extends GetxController {
     }
   }
 
+  /// Navigates to S21 Program Detail for [program].
+  void openProgramDetail(ProgramV2Model program) {
+    _selectedProgram.value = program;
+    _currentStep.value = ProgramScreenStep.programDetail;
+  }
+
+  /// Selects and navigates to S21 Program Detail by [programId].
+  /// Returns `true` if program was found and opened, `false` otherwise.
+  bool openProgramDetailById(String programId) {
+    final cleanId = programId.trim();
+    if (cleanId.isEmpty) return false;
+
+    final match = _userPrograms.firstWhereOrNull((p) => p.id == cleanId);
+    if (match != null) {
+      openProgramDetail(match);
+      return true;
+    }
+
+    final fromRepo = _programRepository?.getById(cleanId);
+    if (fromRepo != null) {
+      openProgramDetail(fromRepo);
+      return true;
+    }
+
+    return false;
+  }
+
+  /// Navigates backwards from S21 Program Detail to S17 Program Hub.
+  void backFromProgramDetail() {
+    _selectedProgram.value = null;
+    _currentStep.value = ProgramScreenStep.hub;
+  }
+
   /// Clears selection and navigates back to S17 Program Hub.
   void clearSelection() {
     _selectedCatalogItem.value = null;
     _configuringItem.value = null;
+    _selectedProgram.value = null;
     _currentStep.value = ProgramScreenStep.hub;
   }
 
