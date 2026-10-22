@@ -9,11 +9,13 @@ import '../../../models/v2_custom_ibadah_draft.dart';
 import '../../../models/v2_ibadah_catalog_item.dart';
 import '../../../models/v2_program_config_draft.dart';
 import '../../../repositories/program_v2_repository.dart';
+import '../../../services/daily_checkin_v2_service.dart';
 import '../../../services/program_v2_creation_service.dart';
 import '../../../theme/v2_design_tokens.dart';
 import 'v2_custom_ibadah_view.dart';
 import 'v2_pilih_ibadah_view.dart';
 import 'v2_program_config_view.dart';
+import 'v2_program_detail_view.dart';
 import 'v2_program_review_view.dart';
 import 'widgets/program_active_card.dart';
 import 'widgets/program_catalog_card.dart';
@@ -38,6 +40,10 @@ class V2ProgramHubView extends StatefulWidget {
   final V2NavigationController? navigationController;
   final ProgramV2Repository? programRepository;
   final ProgramV2CreationService? creationService;
+  final DailyCheckInV2Service? dailyCheckInService;
+  final Future<DailyCheckInResult> Function(String programId, bool confirmed)?
+      onDailyCheckIn;
+  final ValueChanged<ProgramV2Model>? onMuhasabahTap;
   final ProgramCreationCallback? onConfirmCreate;
   final CustomIbadahSaveCallback? onSaveCustomIbadah;
   final ValueChanged<ProgramV2Model>? onProgramCreated;
@@ -57,6 +63,9 @@ class V2ProgramHubView extends StatefulWidget {
     this.navigationController,
     this.programRepository,
     this.creationService,
+    this.dailyCheckInService,
+    this.onDailyCheckIn,
+    this.onMuhasabahTap,
     this.onConfirmCreate,
     this.onSaveCustomIbadah,
     this.onProgramCreated,
@@ -74,6 +83,7 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
   late V2ProgramHubController _controller;
   V2NavigationController? _navigationController;
   ProgramV2CreationService? _creationService;
+  DailyCheckInV2Service? _dailyCheckInService;
   bool _ownsController = false;
 
   @override
@@ -107,6 +117,11 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
     _creationService = widget.creationService ??
         (Get.isRegistered<ProgramV2CreationService>()
             ? Get.find<ProgramV2CreationService>()
+            : null);
+
+    _dailyCheckInService = widget.dailyCheckInService ??
+        (Get.isRegistered<DailyCheckInV2Service>()
+            ? Get.find<DailyCheckInV2Service>()
             : null);
   }
 
@@ -142,6 +157,10 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
         widget.creationService != oldWidget.creationService) {
       _creationService = widget.creationService;
     }
+    if (widget.dailyCheckInService != null &&
+        widget.dailyCheckInService != oldWidget.dailyCheckInService) {
+      _dailyCheckInService = widget.dailyCheckInService;
+    }
   }
 
   @override
@@ -154,6 +173,9 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
 
   void _handleBackNavigation() {
     switch (_controller.currentStep) {
+      case ProgramScreenStep.programDetail:
+        _controller.backFromProgramDetail();
+        break;
       case ProgramScreenStep.programReview:
         _controller.backFromReview();
         break;
@@ -199,13 +221,14 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
         },
         child: Scaffold(
           backgroundColor: scaffoldBg,
-          body: _buildCurrentScreen(context, isDark),
+          body: _buildCurrentScreen(context, isDark, isProgramActive),
         ),
       );
     });
   }
 
-  Widget _buildCurrentScreen(BuildContext context, bool isDark) {
+  Widget _buildCurrentScreen(
+      BuildContext context, bool isDark, bool isProgramActive) {
     final step = _controller.currentStep;
 
     switch (step) {
@@ -267,6 +290,30 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
               _controller.clearSelection();
               widget.onProgramCreated?.call(program);
             },
+          );
+        }
+        return _buildProgramHubHome(context, isDark);
+
+      case ProgramScreenStep.programDetail:
+        final detailProgram = _controller.selectedProgram;
+        if (detailProgram != null) {
+          return V2ProgramDetailView(
+            program: detailProgram,
+            dateService: widget.dateService,
+            programRepository: widget.programRepository ??
+                (Get.isRegistered<ProgramV2Repository>()
+                    ? Get.find<ProgramV2Repository>()
+                    : null),
+            dailyCheckInService: _dailyCheckInService,
+            onDailyCheckIn: widget.onDailyCheckIn,
+            onBack: _controller.backFromProgramDetail,
+            onProgramUpdated: () {
+              _controller.loadUserPrograms();
+            },
+            onMuhasabahTap: widget.onMuhasabahTap != null
+                ? () => widget.onMuhasabahTap!(detailProgram)
+                : null,
+            isActiveTab: isProgramActive,
           );
         }
         return _buildProgramHubHome(context, isDark);
@@ -459,6 +506,7 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
         final program = filtered[index];
         return ProgramActiveCard(
           program: program,
+          onTap: () => _controller.openProgramDetail(program),
         );
       },
     );
