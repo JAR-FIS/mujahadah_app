@@ -20,6 +20,7 @@ class CreateProgramV2Request {
   final int targetDays;
   final ProgramStartSelection startSelection;
   final String? reminderTime;
+  final String? restartedFromProgramId;
 
   const CreateProgramV2Request({
     required this.ibadahId,
@@ -27,6 +28,7 @@ class CreateProgramV2Request {
     required this.targetDays,
     required this.startSelection,
     this.reminderTime,
+    this.restartedFromProgramId,
   });
 }
 
@@ -39,6 +41,7 @@ enum ProgramCreationFailureReason {
   duplicateActiveProgram,
   idCollision,
   idGenerationError,
+  invalidRestartSource,
   persistenceError,
 }
 
@@ -167,6 +170,7 @@ class ProgramV2CreationService {
       targetDays: request.targetDays,
       startSelection: request.startSelection,
       reminderTime: request.reminderTime,
+      restartedFromProgramId: request.restartedFromProgramId,
     );
   }
 
@@ -181,6 +185,7 @@ class ProgramV2CreationService {
     required int targetDays,
     required ProgramStartSelection startSelection,
     String? reminderTime,
+    String? restartedFromProgramId,
   }) {
     return _synchronized(() async {
       // 1. Validate ibadah identity
@@ -241,7 +246,69 @@ class ProgramV2CreationService {
         );
       }
 
-      // 5. Generate and validate unique ID
+      // 5. Validate optional restart origin if provided
+      final String? cleanRestartedFromId;
+      if (restartedFromProgramId != null) {
+        final trimmed = restartedFromProgramId.trim();
+        if (trimmed.isEmpty) {
+          return ProgramCreationResult.failure(
+            reason: ProgramCreationFailureReason.invalidRestartSource,
+            message:
+                'Restart origin program ID must not be empty or whitespace-only.',
+          );
+        }
+
+        final ProgramV2Model? sourceProgram;
+        try {
+          sourceProgram = _repository.getById(trimmed);
+        } on HiveError {
+          return ProgramCreationResult.failure(
+            reason: ProgramCreationFailureReason.persistenceError,
+            message: 'Storage operation failed during restart source lookup.',
+          );
+        } on Exception {
+          return ProgramCreationResult.failure(
+            reason: ProgramCreationFailureReason.persistenceError,
+            message: 'Storage operation failed during restart source lookup.',
+          );
+        }
+
+        if (sourceProgram == null) {
+          return ProgramCreationResult.failure(
+            reason: ProgramCreationFailureReason.invalidRestartSource,
+            message:
+                'Restart source program "$trimmed" was not found in storage.',
+          );
+        }
+
+        // Must be in a terminal status: SUCCESS, WARNING, or FAILED
+        final isTerminal =
+            sourceProgram.status == ProgramV2Model.statusSuccess ||
+                sourceProgram.status == ProgramV2Model.statusWarning ||
+                sourceProgram.status == ProgramV2Model.statusFailed;
+        if (!isTerminal) {
+          return ProgramCreationResult.failure(
+            reason: ProgramCreationFailureReason.invalidRestartSource,
+            message:
+                'Restart source program must be in a terminal status (SUCCESS, WARNING, or FAILED; received: "${sourceProgram.status}").',
+          );
+        }
+
+        // Must match requested ibadah ID
+        if (sourceProgram.ibadahId != cleanIbadahId) {
+          return ProgramCreationResult.failure(
+            reason: ProgramCreationFailureReason.invalidRestartSource,
+            message:
+                'Restart source program ibadah ID ("${sourceProgram.ibadahId}") does not match requested ibadah ID ("$cleanIbadahId").',
+          );
+        }
+
+        cleanRestartedFromId = trimmed;
+      } else {
+        cleanRestartedFromId = null;
+      }
+
+      // 6. Generate and validate unique ID
       final String generatedId;
       try {
         generatedId = _idGenerator();
@@ -257,6 +324,13 @@ class ProgramV2CreationService {
         return ProgramCreationResult.failure(
           reason: ProgramCreationFailureReason.idGenerationError,
           message: 'Generated program ID must not be empty or whitespace-only.',
+        );
+      }
+
+      if (cleanRestartedFromId != null && cleanId == cleanRestartedFromId) {
+        return ProgramCreationResult.failure(
+          reason: ProgramCreationFailureReason.idCollision,
+          message: 'Generated program ID matches restart source ID.',
         );
       }
 
@@ -281,7 +355,7 @@ class ProgramV2CreationService {
         );
       }
 
-      // 6. Capture single current instant and resolve operational startDayKey
+      // 7. Capture single current instant and resolve operational startDayKey
       final capturedNow = _dateService.now;
       final todayKey = _dateService.getMujahadahDayKey(capturedNow);
       final String startDayKey;
@@ -294,7 +368,7 @@ class ProgramV2CreationService {
           break;
       }
 
-      // 7. Instantiate ProgramV2Model
+      // 8. Instantiate ProgramV2Model
       final program = ProgramV2Model(
         id: cleanId,
         ibadahId: cleanIbadahId,
@@ -303,7 +377,7 @@ class ProgramV2CreationService {
         startDayKey: startDayKey,
         status: ProgramV2Model.statusActive,
         reminderTime: reminderTime,
-        restartedFromProgramId: null,
+        restartedFromProgramId: cleanRestartedFromId,
         recipientNameSnapshot: null,
         createdAt: capturedNow,
         updatedAt: capturedNow,
@@ -311,7 +385,7 @@ class ProgramV2CreationService {
         pendingMissedDayKey: null,
       );
 
-      // 8. Persist to storage
+      // 9. Persist to storage
       try {
         await _repository.save(program);
         return ProgramCreationResult.success(program);

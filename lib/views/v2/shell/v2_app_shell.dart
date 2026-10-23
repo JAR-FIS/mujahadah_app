@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../controllers/v2_navigation_controller.dart';
+import '../../../controllers/v2_program_hub_controller.dart';
+import '../../../models/program_v2_model.dart';
+import '../../../repositories/program_v2_repository.dart';
 import '../../../theme/v2_design_tokens.dart';
 import '../dalil/v2_dalil_view.dart';
 import '../dashboard/v2_dashboard_view.dart';
+import '../history/v2_history_view.dart';
 import '../placeholders/v2_placeholders.dart';
 import '../program/v2_program_hub_view.dart';
 
@@ -20,6 +24,7 @@ import '../program/v2_program_hub_view.dart';
 /// Lifecycle & Memory Safety:
 /// - Never calls `Get.put()` inside widget build methods.
 /// - Supports injected controller or lazily registered GetX controller without duplicate instances.
+/// - Shares a synchronized [V2ProgramHubController] instance between Program Hub and History.
 /// - Preserves state across tab transitions using [IndexedStack].
 /// - Enforces safe-area insets and accessible touch targets (>= 48x48 dp).
 class V2AppShell extends StatefulWidget {
@@ -27,7 +32,11 @@ class V2AppShell extends StatefulWidget {
   final Widget? dashboard;
   final Widget? dalil;
   final Widget? program;
+  final Widget? history;
+  final V2ProgramHubController? programHubController;
+  final ProgramV2Repository? programRepository;
   final bool? wireProgramSetup;
+  final ValueChanged<ProgramV2Model>? onRestartProgram;
 
   const V2AppShell({
     super.key,
@@ -35,7 +44,11 @@ class V2AppShell extends StatefulWidget {
     this.dashboard,
     this.dalil,
     this.program,
+    this.history,
+    this.programHubController,
+    this.programRepository,
     this.wireProgramSetup,
+    this.onRestartProgram,
   });
 
   @override
@@ -44,7 +57,10 @@ class V2AppShell extends StatefulWidget {
 
 class _V2AppShellState extends State<V2AppShell> {
   late final V2NavigationController _navigationController;
+  late final V2ProgramHubController _programHubController;
+  ProgramV2Repository? _programRepository;
   bool _ownsController = false;
+  bool _ownsProgramHubController = false;
 
   @override
   void initState() {
@@ -59,12 +75,41 @@ class _V2AppShellState extends State<V2AppShell> {
       _navigationController = V2NavigationController();
       _ownsController = true;
     }
+
+    _programRepository = widget.programRepository ??
+        (Get.isRegistered<ProgramV2Repository>()
+            ? Get.find<ProgramV2Repository>()
+            : null);
+
+    _initProgramHubController();
+  }
+
+  void _initProgramHubController() {
+    if (widget.programHubController != null) {
+      _programHubController = widget.programHubController!;
+      _ownsProgramHubController = false;
+    } else if (widget.program is V2ProgramHubView &&
+        (widget.program as V2ProgramHubView).controller != null) {
+      _programHubController = (widget.program as V2ProgramHubView).controller!;
+      _ownsProgramHubController = false;
+    } else if (Get.isRegistered<V2ProgramHubController>()) {
+      _programHubController = Get.find<V2ProgramHubController>();
+      _ownsProgramHubController = false;
+    } else {
+      _programHubController = V2ProgramHubController(
+        programRepository: _programRepository,
+      );
+      _ownsProgramHubController = true;
+    }
   }
 
   @override
   void dispose() {
     if (_ownsController) {
       _navigationController.dispose();
+    }
+    if (_ownsProgramHubController) {
+      _programHubController.dispose();
     }
     super.dispose();
   }
@@ -76,10 +121,18 @@ class _V2AppShellState extends State<V2AppShell> {
             V2DalilView(navigationController: _navigationController),
         widget.program ??
             V2ProgramHubView(
+              controller: _programHubController,
               navigationController: _navigationController,
+              programRepository: _programRepository,
               wireProgramSetup: widget.wireProgramSetup ?? true,
             ),
-        const V2HistoryPlaceholder(),
+        widget.history ??
+            V2HistoryView(
+              navigationController: _navigationController,
+              programRepository: _programRepository,
+              programHubController: _programHubController,
+              onRestartProgram: widget.onRestartProgram,
+            ),
         const V2AkunPlaceholder(),
       ];
 

@@ -5,18 +5,79 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:hive/hive.dart';
 import 'package:mujahadah/controllers/v2_navigation_controller.dart';
+import 'package:mujahadah/controllers/v2_program_hub_controller.dart';
+import 'package:mujahadah/core/runtime/v2_runtime.dart';
+import 'package:mujahadah/models/program_v2_model.dart';
+import 'package:mujahadah/models/v2_ibadah_catalog_item.dart';
+import 'package:mujahadah/repositories/program_v2_repository.dart';
+import 'package:mujahadah/services/program_v2_creation_service.dart';
 import 'package:mujahadah/theme/v2_design_tokens.dart';
 import 'package:mujahadah/theme/v2_theme.dart';
 import 'package:mujahadah/views/v2/dalil/v2_dalil_view.dart';
 import 'package:mujahadah/views/v2/dashboard/v2_dashboard_view.dart';
+import 'package:mujahadah/views/v2/history/v2_history_detail_view.dart';
+import 'package:mujahadah/views/v2/history/v2_history_view.dart';
 import 'package:mujahadah/views/v2/placeholders/v2_placeholders.dart';
+import 'package:mujahadah/views/v2/program/v2_program_config_view.dart';
 import 'package:mujahadah/views/v2/program/v2_program_hub_view.dart';
+import 'package:mujahadah/views/v2/program/v2_program_review_view.dart';
 import 'package:mujahadah/views/v2/shell/v2_app_shell.dart';
 
 void main() {
-  setUp(() {
+  Directory? tempDir;
+  Box<ProgramV2Model>? programBox;
+  ProgramV2Repository? programRepo;
+
+  final sampleCatalog = [
+    const V2IbadahCatalogItem(
+      id: 'ibd-tahajjud',
+      namaIbadah: 'Shalat Tahajjud',
+      category: V2IbadahCategory.sholatSunnah,
+      deskripsi: 'Shalat sunnah malam hari.',
+      defaultTargetDays: 40,
+      isDailyEligible: true,
+    ),
+    const V2IbadahCatalogItem(
+      id: 'ibd-dhuha',
+      namaIbadah: 'Shalat Dhuha',
+      category: V2IbadahCategory.sholatSunnah,
+      deskripsi: 'Shalat sunnah pagi hari.',
+      defaultTargetDays: 40,
+      isDailyEligible: true,
+    ),
+    const V2IbadahCatalogItem(
+      id: 'ibd-senin-kamis',
+      namaIbadah: 'Puasa Senin Kamis',
+      category: V2IbadahCategory.puasa,
+      deskripsi: 'Puasa sunnah mingguan.',
+      defaultTargetDays: 40,
+      isDailyEligible: false,
+    ),
+  ];
+
+  setUpAll(() async {
+    tempDir = Directory.systemTemp.createTempSync('v2_app_shell_test_');
+    Hive.init(tempDir!.path);
+    V2Runtime.registerAdapters();
+    programBox = await Hive.openBox<ProgramV2Model>('test_app_shell_prog_box');
+    programRepo = ProgramV2Repository(box: programBox!);
+  });
+
+  tearDownAll(() async {
+    await programBox?.close();
+    await Hive.close();
+    try {
+      if (tempDir != null && tempDir!.existsSync()) {
+        tempDir!.deleteSync(recursive: true);
+      }
+    } catch (_) {}
+  });
+
+  setUp(() async {
     Get.reset();
+    await programBox?.clear();
   });
 
   tearDown(() {
@@ -165,7 +226,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.currentIndex, 3);
       expect(controller.currentTab, V2NavigationTab.history);
-      expect(find.byType(V2HistoryPlaceholder), findsOneWidget);
+      expect(find.byType(V2HistoryView), findsOneWidget);
 
       // Select Akun (4)
       await tester.tap(find.byKey(const ValueKey('v2_nav_item_akun')));
@@ -191,7 +252,7 @@ void main() {
       );
 
       expect(controller.currentIndex, 3);
-      expect(find.byType(V2HistoryPlaceholder), findsOneWidget);
+      expect(find.byType(V2HistoryView), findsOneWidget);
 
       // Force rebuild of parent
       await tester.pumpWidget(
@@ -202,7 +263,7 @@ void main() {
       );
 
       expect(controller.currentIndex, 3);
-      expect(find.byType(V2HistoryPlaceholder), findsOneWidget);
+      expect(find.byType(V2HistoryView), findsOneWidget);
     });
 
     // -------------------------------------------------------------------------
@@ -611,6 +672,271 @@ void main() {
 
       final V2ProgramHubView unwiredHub = tester.widget(hubFinder);
       expect(unwiredHub.wireProgramSetup, isFalse);
+    });
+
+    // -------------------------------------------------------------------------
+    // Scenario 16: E2E Restart Journey from App Shell Default Composition (P1-01)
+    // -------------------------------------------------------------------------
+    testWidgets(
+        '16. E2E App Shell Restart: History card -> Detail -> Mulai Lagi -> S20 -> Review -> new ACTIVE program',
+        (tester) async {
+      final oldProg = ProgramV2Model(
+        id: 'prog_old_tahajjud',
+        ibadahId: 'ibd-tahajjud',
+        ibadahNameSnapshot: 'Shalat Tahajjud',
+        targetDays: 40,
+        startDayKey: '2026-08-01',
+        status: ProgramV2Model.statusSuccess,
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 9, 10),
+        finalizedAt: DateTime(2026, 9, 10),
+      );
+      await tester.runAsync(() async {
+        await programRepo!.save(oldProg);
+      });
+
+      final creationService =
+          ProgramV2CreationService(repository: programRepo!);
+      final hubController = V2ProgramHubController(
+        initialCatalog: sampleCatalog,
+        programRepository: programRepo!,
+      );
+      final navController = V2NavigationController();
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: V2Theme.lightTheme,
+          home: V2AppShell(
+            controller: navController,
+            programHubController: hubController,
+            programRepository: programRepo!,
+            program: V2ProgramHubView(
+              controller: hubController,
+              navigationController: navController,
+              programRepository: programRepo!,
+              creationService: creationService,
+              wireProgramSetup: true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Switch to History tab (index 3)
+      await tester.tap(find.byKey(const ValueKey('v2_nav_item_history')));
+      await tester.pumpAndSettle();
+
+      // Old program card is visible in History
+      expect(find.byKey(const ValueKey('v2_history_card_prog_old_tahajjud')),
+          findsOneWidget);
+
+      // Open Detail view
+      await tester
+          .tap(find.byKey(const ValueKey('v2_history_card_prog_old_tahajjud')));
+      await tester.pumpAndSettle();
+      expect(find.byType(V2HistoryDetailView), findsOneWidget);
+
+      // Tap Mulai Lagi Program Ini
+      await tester
+          .tap(find.byKey(const ValueKey('v2_history_detail_restart_button')));
+      await tester.pumpAndSettle();
+
+      // P1-01 Verification:
+      // Tab MUST have switched to Program (tab index 2)
+      expect(navController.currentTab, equals(V2NavigationTab.program));
+      // V2ProgramConfigView (S20) MUST be actively rendered
+      expect(find.byType(V2ProgramConfigView), findsOneWidget);
+
+      // Proceed through S20 -> Review Program
+      await tester.tap(find.byKey(const ValueKey('v2_config_review_button')));
+      await tester.pumpAndSettle();
+
+      // Review Program is visibly rendered with restart notice banner
+      expect(find.byType(V2ProgramReviewView), findsOneWidget);
+      expect(find.text('Memulai Perjalanan Baru'), findsOneWidget);
+
+      // Confirm and create new program
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(const ValueKey('v2_review_create_button')));
+        await tester.pump();
+        await Future.delayed(const Duration(milliseconds: 200));
+      });
+      await tester.pumpAndSettle();
+
+      // Verify domain creation result
+      final allPrograms = programRepo!.getAll();
+      expect(allPrograms.length, equals(2));
+
+      final activePrograms = allPrograms
+          .where((p) => p.status == ProgramV2Model.statusActive)
+          .toList();
+      expect(activePrograms.length, equals(1));
+      final newProg = activePrograms.first;
+      expect(newProg.id, isNot(equals(oldProg.id)));
+      expect(newProg.restartedFromProgramId, equals(oldProg.id));
+      expect(newProg.ibadahId, equals('ibd-tahajjud'));
+
+      // Old program remains preserved and untouched
+      final oldRefreshed = programRepo!.getById(oldProg.id);
+      expect(oldRefreshed, isNotNull);
+      expect(oldRefreshed!.status, equals(ProgramV2Model.statusSuccess));
+    });
+
+    // -------------------------------------------------------------------------
+    // Scenario 17: History dynamic refresh on tab activation (P1-02)
+    // -------------------------------------------------------------------------
+    testWidgets(
+        '17. History tab automatically refreshes when returning from another tab without manual reload',
+        (tester) async {
+      final navController =
+          V2NavigationController(initialTab: V2NavigationTab.dashboard);
+      final hubController = V2ProgramHubController(
+        initialCatalog: sampleCatalog,
+        programRepository: programRepo!,
+      );
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: V2Theme.lightTheme,
+          home: V2AppShell(
+            controller: navController,
+            programHubController: hubController,
+            programRepository: programRepo!,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to History (initially empty)
+      await tester.tap(find.byKey(const ValueKey('v2_nav_item_history')));
+      await tester.pumpAndSettle();
+      expect(find.text('Belum Ada Riwayat'), findsOneWidget);
+
+      // Switch to Program tab
+      await tester.tap(find.byKey(const ValueKey('v2_nav_item_program')));
+      await tester.pumpAndSettle();
+
+      // While away on Program tab, a program becomes terminal in repository
+      final newTerminal = ProgramV2Model(
+        id: 'prog_new_terminal_after_muhasabah',
+        ibadahId: 'ibd-dhuha',
+        ibadahNameSnapshot: 'Shalat Dhuha',
+        targetDays: 40,
+        startDayKey: '2026-10-01',
+        status: ProgramV2Model.statusFailed,
+        createdAt: DateTime(2026, 10, 1),
+        updatedAt: DateTime(2026, 10, 15),
+        finalizedAt: DateTime(2026, 10, 15),
+      );
+      await tester.runAsync(() async {
+        await programRepo!.save(newTerminal);
+      });
+
+      // Switch back to History tab
+      await tester.tap(find.byKey(const ValueKey('v2_nav_item_history')));
+      await tester.pumpAndSettle();
+
+      // P1-02 Verification: New terminal program is immediately visible without recreating view
+      expect(
+          find.byKey(const ValueKey(
+              'v2_history_card_prog_new_terminal_after_muhasabah')),
+          findsOneWidget);
+      expect(find.text('Belum Ada Riwayat'), findsNothing);
+    });
+
+    // -------------------------------------------------------------------------
+    // Scenario 18: Fail-closed restart when template is ineligible in App Shell
+    // -------------------------------------------------------------------------
+    testWidgets(
+        '18. Ineligible catalog template fails closed with notice and stays on History',
+        (tester) async {
+      final ineligibleTerminal = ProgramV2Model(
+        id: 'prog_puasa_terminal',
+        ibadahId: 'ibd-senin-kamis',
+        ibadahNameSnapshot: 'Puasa Senin Kamis',
+        targetDays: 40,
+        startDayKey: '2026-08-01',
+        status: ProgramV2Model.statusSuccess,
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 9, 10),
+        finalizedAt: DateTime(2026, 9, 10),
+      );
+      await tester.runAsync(() async {
+        await programRepo!.save(ineligibleTerminal);
+      });
+
+      final hubController = V2ProgramHubController(
+        initialCatalog: sampleCatalog,
+        programRepository: programRepo!,
+      );
+      final navController =
+          V2NavigationController(initialTab: V2NavigationTab.history);
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: V2Theme.lightTheme,
+          home: V2AppShell(
+            controller: navController,
+            programHubController: hubController,
+            programRepository: programRepo!,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Open detail
+      await tester.tap(
+          find.byKey(const ValueKey('v2_history_card_prog_puasa_terminal')));
+      await tester.pumpAndSettle();
+
+      // Tap Mulai Lagi
+      await tester
+          .tap(find.byKey(const ValueKey('v2_history_detail_restart_button')));
+      await tester.pumpAndSettle();
+
+      // Shows modal dialog: Template Tidak Tersedia
+      expect(find.text('Template Tidak Tersedia'), findsOneWidget);
+      expect(navController.currentTab, equals(V2NavigationTab.history));
+    });
+
+    // -------------------------------------------------------------------------
+    // Scenario 19: Fast tab switching and dispose safety across IndexedStack
+    // -------------------------------------------------------------------------
+    testWidgets(
+        '19. Fast tab switching across IndexedStack is race-safe and disposes cleanly',
+        (tester) async {
+      final navController = V2NavigationController();
+      final hubController = V2ProgramHubController(
+        initialCatalog: sampleCatalog,
+        programRepository: programRepo!,
+      );
+
+      await tester.pumpWidget(
+        GetMaterialApp(
+          theme: V2Theme.lightTheme,
+          home: V2AppShell(
+            controller: navController,
+            programHubController: hubController,
+            programRepository: programRepo!,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Rapidly switch tabs
+      navController.selectTab(V2NavigationTab.dalil);
+      await tester.pump();
+      navController.selectTab(V2NavigationTab.history);
+      await tester.pump();
+      navController.selectTab(V2NavigationTab.program);
+      await tester.pump();
+      navController.selectTab(V2NavigationTab.dashboard);
+      await tester.pump();
+      navController.selectTab(V2NavigationTab.history);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(navController.currentTab, equals(V2NavigationTab.history));
     });
   });
 }

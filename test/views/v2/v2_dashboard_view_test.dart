@@ -23,6 +23,7 @@ import 'package:mujahadah/theme/v2_design_tokens.dart';
 import 'package:mujahadah/theme/v2_theme.dart';
 import 'package:mujahadah/views/v2/dalil/v2_dalil_view.dart';
 import 'package:mujahadah/views/v2/dashboard/v2_dashboard_view.dart';
+import 'package:mujahadah/views/v2/history/v2_history_view.dart';
 import 'package:mujahadah/views/v2/placeholders/v2_placeholders.dart';
 import 'package:mujahadah/views/v2/program/v2_program_hub_view.dart';
 import 'package:mujahadah/views/v2/shell/v2_app_shell.dart';
@@ -701,8 +702,7 @@ void main() {
       // Tab 3: History / Riwayat
       navController.selectTab(V2NavigationTab.history);
       await tester.pumpAndSettle();
-      expect(find.byType(V2HistoryPlaceholder), findsOneWidget);
-      expect(find.text('S23 • Foundation Placeholder'), findsOneWidget);
+      expect(find.byType(V2HistoryView), findsOneWidget);
 
       // Tab 4: Akun
       navController.selectTab(V2NavigationTab.akun);
