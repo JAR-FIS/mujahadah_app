@@ -11,8 +11,11 @@ import '../../../models/v2_program_config_draft.dart';
 import '../../../repositories/program_v2_repository.dart';
 import '../../../services/daily_checkin_v2_service.dart';
 import '../../../services/program_v2_creation_service.dart';
+import '../../../services/program_v2_journey_orchestrator.dart';
+import '../../../services/program_v2_muhasabah_service.dart';
 import '../../../theme/v2_design_tokens.dart';
 import 'v2_custom_ibadah_view.dart';
+import 'v2_muhasabah_view.dart';
 import 'v2_pilih_ibadah_view.dart';
 import 'v2_program_config_view.dart';
 import 'v2_program_detail_view.dart';
@@ -48,6 +51,11 @@ class V2ProgramHubView extends StatefulWidget {
   final CustomIbadahSaveCallback? onSaveCustomIbadah;
   final ValueChanged<ProgramV2Model>? onProgramCreated;
   final DateService? dateService;
+  final ProgramV2JourneyOrchestrator? journeyOrchestrator;
+  final ProgramV2MuhasabahService? muhasabahService;
+  final MuhasabahSubmitCallback? onMuhasabahSubmit;
+  final List<MuhasabahReasonOption>? muhasabahReasonOptions;
+  final ValueChanged<ProgramV2Model>? onMuhasabahCompleted;
   @Deprecated(
     'Legacy creation callback from MV2-B0-02-05. Direct creation from S18 '
     'is disabled; program creation must pass through S20 and Review Program. '
@@ -70,6 +78,11 @@ class V2ProgramHubView extends StatefulWidget {
     this.onSaveCustomIbadah,
     this.onProgramCreated,
     this.dateService,
+    this.journeyOrchestrator,
+    this.muhasabahService,
+    this.onMuhasabahSubmit,
+    this.muhasabahReasonOptions,
+    this.onMuhasabahCompleted,
     this.onStartProgram,
     this.onNewCustomTap,
     this.wireProgramSetup,
@@ -84,6 +97,8 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
   V2NavigationController? _navigationController;
   ProgramV2CreationService? _creationService;
   DailyCheckInV2Service? _dailyCheckInService;
+  ProgramV2JourneyOrchestrator? _journeyOrchestrator;
+  ProgramV2MuhasabahService? _muhasabahService;
   bool _ownsController = false;
 
   @override
@@ -123,6 +138,16 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
         (Get.isRegistered<DailyCheckInV2Service>()
             ? Get.find<DailyCheckInV2Service>()
             : null);
+
+    _journeyOrchestrator = widget.journeyOrchestrator ??
+        (Get.isRegistered<ProgramV2JourneyOrchestrator>()
+            ? Get.find<ProgramV2JourneyOrchestrator>()
+            : null);
+
+    _muhasabahService = widget.muhasabahService ??
+        (Get.isRegistered<ProgramV2MuhasabahService>()
+            ? Get.find<ProgramV2MuhasabahService>()
+            : null);
   }
 
   @override
@@ -161,6 +186,18 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
         widget.dailyCheckInService != oldWidget.dailyCheckInService) {
       _dailyCheckInService = widget.dailyCheckInService;
     }
+    if (widget.journeyOrchestrator != oldWidget.journeyOrchestrator) {
+      _journeyOrchestrator = widget.journeyOrchestrator ??
+          (Get.isRegistered<ProgramV2JourneyOrchestrator>()
+              ? Get.find<ProgramV2JourneyOrchestrator>()
+              : null);
+    }
+    if (widget.muhasabahService != oldWidget.muhasabahService) {
+      _muhasabahService = widget.muhasabahService ??
+          (Get.isRegistered<ProgramV2MuhasabahService>()
+              ? Get.find<ProgramV2MuhasabahService>()
+              : null);
+    }
   }
 
   @override
@@ -173,6 +210,9 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
 
   void _handleBackNavigation() {
     switch (_controller.currentStep) {
+      case ProgramScreenStep.muhasabah:
+        _controller.backFromMuhasabah();
+        break;
       case ProgramScreenStep.programDetail:
         _controller.backFromProgramDetail();
         break;
@@ -310,9 +350,39 @@ class _V2ProgramHubViewState extends State<V2ProgramHubView> {
             onProgramUpdated: () {
               _controller.loadUserPrograms();
             },
-            onMuhasabahTap: widget.onMuhasabahTap != null
-                ? () => widget.onMuhasabahTap!(detailProgram)
-                : null,
+            onMuhasabahTap: () {
+              _controller.openMuhasabah(detailProgram);
+              widget.onMuhasabahTap?.call(detailProgram);
+            },
+            isActiveTab: isProgramActive,
+          );
+        }
+        return _buildProgramHubHome(context, isDark);
+
+      case ProgramScreenStep.muhasabah:
+        final muhasabahProgram = _controller.selectedProgram;
+        if (muhasabahProgram != null) {
+          return V2MuhasabahView(
+            program: muhasabahProgram,
+            dateService: widget.dateService,
+            programRepository: widget.programRepository ??
+                (Get.isRegistered<ProgramV2Repository>()
+                    ? Get.find<ProgramV2Repository>()
+                    : null),
+            orchestrator: _journeyOrchestrator,
+            muhasabahService: _muhasabahService,
+            onMuhasabahSubmit: widget.onMuhasabahSubmit,
+            reasonOptions: widget.muhasabahReasonOptions,
+            onBack: _controller.backFromMuhasabah,
+            onBackToHub: () {
+              _controller.loadUserPrograms();
+              _controller.selectTab(ProgramHubTab.ibadahSaya);
+              _controller.clearSelection();
+            },
+            onCompleted: (program) {
+              _controller.loadUserPrograms();
+              widget.onMuhasabahCompleted?.call(program);
+            },
             isActiveTab: isProgramActive,
           );
         }

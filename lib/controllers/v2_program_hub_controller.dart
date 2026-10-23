@@ -29,10 +29,12 @@ enum ProgramScreenStep {
   programConfig, // S20: Konfigurasi Target & Durasi Program
   programReview, // Review Program: Konfirmasi Mandatori
   programDetail, // S21: Detail Program & Daily Check-in
+  muhasabah, // S22: Muhasabah / Evaluasi Kendala Program
 }
 
 /// Controller coordinating V2 Program Hub (S17), Pilih Ibadah (S18),
 /// Tambah Ibadah Kustom (S19), Konfigurasi Program (S20), Review Program,
+/// Program Detail (S21), and Muhasabah (S22).
 /// and Program Detail (S21).
 ///
 /// Responsibilities:
@@ -129,6 +131,9 @@ class V2ProgramHubController extends GetxController {
   /// Whether S21 Program Detail view is currently open.
   bool get isProgramDetailOpen =>
       _currentStep.value == ProgramScreenStep.programDetail;
+
+  /// Whether S22 Muhasabah view is currently open.
+  bool get isMuhasabahOpen => _currentStep.value == ProgramScreenStep.muhasabah;
 
   /// Whether programs are currently being loaded.
   bool get isLoading => _isLoading.value;
@@ -273,6 +278,17 @@ class V2ProgramHubController extends GetxController {
   void backFromProgramDetail() {
     _selectedProgram.value = null;
     _currentStep.value = ProgramScreenStep.hub;
+  }
+
+  /// Navigates to S22 Muhasabah for [program].
+  void openMuhasabah(ProgramV2Model program) {
+    _selectedProgram.value = program;
+    _currentStep.value = ProgramScreenStep.muhasabah;
+  }
+
+  /// Navigates backwards from S22 Muhasabah to S21 Program Detail.
+  void backFromMuhasabah() {
+    _currentStep.value = ProgramScreenStep.programDetail;
   }
 
   /// Clears selection and navigates back to S17 Program Hub.
