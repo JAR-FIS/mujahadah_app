@@ -109,6 +109,8 @@ class _V2ProgramReviewViewState extends State<V2ProgramReviewView> {
       case ProgramCreationFailureReason.emptyIbadahId:
       case ProgramCreationFailureReason.emptyIbadahName:
         return 'Data ibadah tidak lengkap.';
+      case ProgramCreationFailureReason.invalidRestartSource:
+        return 'Program riwayat asal tidak valid atau belum berstatus selesai/terhenti.';
       case null:
         return 'Terjadi kendala saat membuat program. Silakan coba lagi.';
     }
@@ -144,6 +146,7 @@ class _V2ProgramReviewViewState extends State<V2ProgramReviewView> {
       startSelection: widget.draft.startSelection,
       reminderTime:
           widget.draft.isReminderEnabled ? widget.draft.reminderTime : null,
+      restartedFromProgramId: widget.draft.restartedFromProgramId,
     );
 
     try {
@@ -331,6 +334,62 @@ class _V2ProgramReviewViewState extends State<V2ProgramReviewView> {
             ),
           ),
           const SizedBox(height: V2Spacing.md),
+
+          // Restart Origin Indicator (if restarting from history)
+          if (widget.draft.restartedFromProgramId != null) ...[
+            Container(
+              key: const ValueKey('v2_review_restart_notice'),
+              padding: const EdgeInsets.symmetric(
+                horizontal: V2Spacing.md,
+                vertical: V2Spacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? V2Colors.mint.withValues(alpha: 0.15)
+                    : V2Colors.deepTosca.withValues(alpha: 0.08),
+                borderRadius: V2Radius.borderMd,
+                border: Border.all(
+                  color: isDark
+                      ? V2Colors.mint.withValues(alpha: 0.3)
+                      : V2Colors.deepTosca.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.replay_rounded,
+                    size: 18,
+                    color: isDark ? V2Colors.mint : V2Colors.deepTosca,
+                  ),
+                  const SizedBox(width: V2Spacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Memulai Perjalanan Baru',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? V2Colors.mint : V2Colors.deepTosca,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Melanjutkan ikhtiar dari riwayat sebelumnya (${widget.item.namaIbadah}). Riwayat dan catatan evaluasi lama tetap tersimpan.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: V2Spacing.md),
+          ],
 
           // Worship Title
           _buildDetailRow(

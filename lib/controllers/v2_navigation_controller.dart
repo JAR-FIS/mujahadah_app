@@ -41,6 +41,9 @@ class V2NavigationController extends GetxController {
   /// Currently selected tab enum.
   V2NavigationTab get currentTab => _currentTab.value;
 
+  /// Reactive stream for observing tab transitions across views.
+  Rx<V2NavigationTab> get currentTabRx => _currentTab;
+
   /// Index of the currently selected tab (0 through 4).
   int get currentIndex => _currentTab.value.index;
 

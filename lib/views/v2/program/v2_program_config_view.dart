@@ -95,6 +95,7 @@ class _V2ProgramConfigViewState extends State<V2ProgramConfigView> {
       reminderTime: _isReminderEnabled ? _formattedReminderTime : null,
       reviewedStartDayKey:
           reviewedStartDayKey ?? widget.initialDraft.reviewedStartDayKey,
+      restartedFromProgramId: widget.initialDraft.restartedFromProgramId,
     );
   }
 

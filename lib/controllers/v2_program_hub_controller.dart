@@ -5,6 +5,7 @@ import '../models/v2_custom_ibadah_draft.dart';
 import '../models/v2_ibadah_catalog_item.dart';
 import '../models/v2_program_config_draft.dart';
 import '../repositories/program_v2_repository.dart';
+import '../services/program_v2_creation_service.dart';
 
 /// Top-level tabs for V2 Program Hub (Screen S17).
 enum ProgramHubTab {
@@ -211,7 +212,8 @@ class V2ProgramHubController extends GetxController {
   /// Resets configuration draft when switching to a different ibadah,
   /// preventing stale duration or reminder values from bleeding across items.
   void startProgramSetup(V2IbadahCatalogItem item, {bool fromCustom = false}) {
-    if (_configuringItem.value?.id != item.id) {
+    if (_configuringItem.value?.id != item.id ||
+        _configDraft.value.restartedFromProgramId != null) {
       _configDraft.value = V2ProgramConfigDraft(
         targetDays: item.defaultTargetDays >= 40 ? item.defaultTargetDays : 40,
       );
@@ -219,6 +221,38 @@ class V2ProgramHubController extends GetxController {
     _configuringItem.value = item;
     _isCustomSource.value = fromCustom;
     _currentStep.value = ProgramScreenStep.programConfig;
+  }
+
+  /// Begins S20 configuration for a restart journey originating from [sourceProgram].
+  ///
+  /// Prefills target duration and reminder settings from [sourceProgram] as editable defaults,
+  /// attaches the immutable [sourceProgram.id] as [restartedFromProgramId], and navigates to S20.
+  void startRestartProgramSetup(
+    V2IbadahCatalogItem item,
+    ProgramV2Model sourceProgram,
+  ) {
+    final effectiveTarget =
+        sourceProgram.targetDays >= 40 && sourceProgram.targetDays <= 365
+            ? sourceProgram.targetDays
+            : (item.defaultTargetDays >= 40 ? item.defaultTargetDays : 40);
+
+    _configDraft.value = V2ProgramConfigDraft(
+      targetDays: effectiveTarget,
+      startSelection: ProgramStartSelection.today,
+      isReminderEnabled: sourceProgram.reminderTime != null,
+      reminderTime: sourceProgram.reminderTime,
+      restartedFromProgramId: sourceProgram.id,
+    );
+    _configuringItem.value = item;
+    _isCustomSource.value = false;
+    _currentStep.value = ProgramScreenStep.programConfig;
+  }
+
+  /// Explicitly clears any active restart intent from the configuration draft.
+  void clearRestartIntent() {
+    if (_configDraft.value.restartedFromProgramId != null) {
+      _configDraft.value = const V2ProgramConfigDraft();
+    }
   }
 
   /// Updates the active program configuration draft.
@@ -238,7 +272,12 @@ class V2ProgramHubController extends GetxController {
 
   /// Navigates backwards from S20 to previous screen.
   void backFromConfig() {
-    if (_isCustomSource.value) {
+    if (_configDraft.value.restartedFromProgramId != null) {
+      // Clear restart intent so it cannot leak to other setup flows
+      clearRestartIntent();
+      _configuringItem.value = null;
+      _currentStep.value = ProgramScreenStep.hub;
+    } else if (_isCustomSource.value) {
       _currentStep.value = ProgramScreenStep.customIbadah;
     } else if (_selectedCatalogItem.value != null) {
       _currentStep.value = ProgramScreenStep.catalogDetail;
@@ -296,6 +335,7 @@ class V2ProgramHubController extends GetxController {
     _selectedCatalogItem.value = null;
     _configuringItem.value = null;
     _selectedProgram.value = null;
+    clearRestartIntent();
     _currentStep.value = ProgramScreenStep.hub;
   }
 

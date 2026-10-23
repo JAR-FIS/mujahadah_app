@@ -25,6 +25,7 @@ class V2ProgramConfigDraft {
   final bool isReminderEnabled;
   final String? reminderTime;
   final String? reviewedStartDayKey;
+  final String? restartedFromProgramId;
 
   const V2ProgramConfigDraft({
     this.targetDays = 40,
@@ -34,6 +35,7 @@ class V2ProgramConfigDraft {
     this.isReminderEnabled = false,
     this.reminderTime,
     this.reviewedStartDayKey,
+    this.restartedFromProgramId,
   });
 
   /// Evaluates the effective target days based on preset vs custom entry.
@@ -101,6 +103,7 @@ class V2ProgramConfigDraft {
     bool? isReminderEnabled,
     String? reminderTime,
     String? reviewedStartDayKey,
+    String? restartedFromProgramId,
   }) {
     return V2ProgramConfigDraft(
       targetDays: targetDays ?? this.targetDays,
@@ -110,6 +113,8 @@ class V2ProgramConfigDraft {
       isReminderEnabled: isReminderEnabled ?? this.isReminderEnabled,
       reminderTime: reminderTime ?? this.reminderTime,
       reviewedStartDayKey: reviewedStartDayKey ?? this.reviewedStartDayKey,
+      restartedFromProgramId:
+          restartedFromProgramId ?? this.restartedFromProgramId,
     );
   }
 
@@ -124,7 +129,8 @@ class V2ProgramConfigDraft {
           startSelection == other.startSelection &&
           isReminderEnabled == other.isReminderEnabled &&
           reminderTime == other.reminderTime &&
-          reviewedStartDayKey == other.reviewedStartDayKey;
+          reviewedStartDayKey == other.reviewedStartDayKey &&
+          restartedFromProgramId == other.restartedFromProgramId;
 
   @override
   int get hashCode =>
@@ -134,7 +140,8 @@ class V2ProgramConfigDraft {
       startSelection.hashCode ^
       isReminderEnabled.hashCode ^
       reminderTime.hashCode ^
-      reviewedStartDayKey.hashCode;
+      reviewedStartDayKey.hashCode ^
+      restartedFromProgramId.hashCode;
 }
 
 /// Typed callback signature for creating a Program V2 instance.
